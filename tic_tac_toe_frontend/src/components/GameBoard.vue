@@ -24,6 +24,9 @@ const lines: number[][] = [
   [2, 4, 6],
 ]
 
+// Map players to chess Unicode symbols
+const chessIconFor = (p: Player): string => (p === 'X' ? '♞' : '♛') // Knight for X, Queen for O
+
 // PUBLIC_INTERFACE
 function resetGame(): void {
   /** Reset the game to an initial clean state. */
@@ -61,11 +64,7 @@ function makeMove(index: number): void {
   }
 }
 
-const statusLabel = computed(() => {
-  if (state.winner) return `Winner: ${state.winner}`
-  if (state.isDraw) return 'Draw'
-  return `Turn: ${state.currentPlayer}`
-})
+/* status text is directly constructed in template with visible icons to avoid redundancy */
 
 const statusClass = computed(() => {
   if (state.winner) return 'status win'
@@ -76,7 +75,12 @@ const statusClass = computed(() => {
 function ariaForCell(i: number): string {
   const v = state.cells[i]
   const pos = `row ${Math.floor(i / 3) + 1} column ${ (i % 3) + 1 }`
-  return v ? `Cell ${pos} with ${v}` : `Empty cell ${pos}, press to place ${state.currentPlayer}`
+  if (v) {
+    const piece = v === 'X' ? 'knight' : 'queen'
+    return `Cell ${pos} with ${v}, ${piece}`
+  }
+  const pieceToPlace = state.currentPlayer === 'X' ? 'knight' : 'queen'
+  return `Empty cell ${pos}, press to place ${state.currentPlayer}, ${pieceToPlace}`
 }
 
 function isWinningCell(i: number): boolean {
@@ -88,8 +92,45 @@ function isWinningCell(i: number): boolean {
   <div>
     <div :class="statusClass" role="status" aria-live="polite">
       <span class="dot" aria-hidden="true"></span>
-      <span class="label">{{ statusLabel }}</span>
-      <span class="subtle" v-if="!state.winner && !state.isDraw">Players: X (blue) · O (amber)</span>
+      <span class="label">
+        <!-- Visual icon for status -->
+        <template v-if="state.winner">
+          <span
+            v-if="state.winner === 'X'"
+            class="icon mark x"
+            aria-hidden="true"
+          >{{ chessIconFor('X') }}</span>
+          <span
+            v-else
+            class="icon mark o"
+            aria-hidden="true"
+          >{{ chessIconFor('O') }}</span>
+          <span class="sr-only">Winner:</span>
+          Winner
+        </template>
+        <template v-else-if="state.isDraw">
+          Draw
+        </template>
+        <template v-else>
+          <span class="sr-only">Turn:</span>
+          <span
+            v-if="state.currentPlayer === 'X'"
+            class="icon mark x"
+            aria-hidden="true"
+          >{{ chessIconFor('X') }}</span>
+          <span
+            v-else
+            class="icon mark o"
+            aria-hidden="true"
+          >{{ chessIconFor('O') }}</span>
+          Turn
+        </template>
+      </span>
+      <span class="subtle" v-if="!state.winner && !state.isDraw">
+        Players: <span class="icon-inline x" aria-hidden="true">♞</span> (blue) ·
+        <span class="icon-inline o" aria-hidden="true">♛</span> (amber)
+        <span class="sr-only">X is knight, O is queen</span>
+      </span>
     </div>
 
     <div class="board" role="grid" aria-label="Tic Tac Toe Board">
@@ -105,7 +146,13 @@ function isWinningCell(i: number): boolean {
         @click="makeMove(i)"
         @keyup.enter="makeMove(i)"
       >
-        <span class="mark" v-if="cell">{{ cell }}</span>
+        <span
+          v-if="cell"
+          class="mark"
+          :class="[{ x: cell === 'X', o: cell === 'O' }]"
+          aria-hidden="true"
+        >{{ chessIconFor(cell) }}</span>
+        <span v-else class="sr-only">Empty</span>
       </button>
     </div>
 
@@ -127,5 +174,45 @@ function isWinningCell(i: number): boolean {
 </template>
 
 <style scoped>
-/* The styles rely on variables from theme.css. Component adds minimal overrides if needed. */
+/* Accessibility helper for screen readers */
+.sr-only {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap; /* added line */
+  border: 0;
+}
+
+/* Icon styles inherit existing theme sizing */
+.icon,
+.mark {
+  font-size: 1em; /* keep consistent with cell font-size scaling */
+  line-height: 1;
+  display: inline-block;
+}
+
+/* Colors follow theme: X (knight) uses primary blue, O (queen) uses secondary amber */
+.x {
+  color: var(--ocean-primary);
+}
+.o {
+  color: var(--ocean-secondary);
+}
+
+/* Inline icons for small status text */
+.icon-inline {
+  font-weight: 800;
+}
+
+/* Ensure board marks remain crisp */
+.cell .mark {
+  transform: translateZ(0);
+  will-change: transform, color;
+}
+
+/* Existing .cell.o .mark color rule is now complemented by .o class above */
 </style>
